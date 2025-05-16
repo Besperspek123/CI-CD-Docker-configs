@@ -1,3 +1,4 @@
+#конфиг который собирает контейнер для nextjs проекта
 FROM node:20-alpine
 WORKDIR /app
 
