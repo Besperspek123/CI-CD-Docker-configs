@@ -1,3 +1,4 @@
+#Контейнер который содержит в себе Backend API написанный на python
 FROM python:3.11-slim
 
 WORKDIR /app
