@@ -1,0 +1,77 @@
+name: Build and Deploy Bot
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'corretto'
+          java-version: '17'
+
+      - name: Build with Maven
+        run: mvn clean package -DskipTests
+
+      - name: Upload JAR file as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: telegram-simple-bot
+          path: target/TGBOT-0.0.1-SNAPSHOT.jar
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download JAR file artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: telegram-simple-bot
+          path: ./telegram-artifacts
+
+      - name: List files in the artifact directory
+        run: |
+          ls -la ./telegram-artifacts
+
+      - name: Ensure remote directory exists (via SSH)
+        uses: appleboy/ssh-action@v1.2.1
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.DEPLOY_KEY }}
+          port: 22
+          script: |
+            ls -la
+            mkdir -p /opt/bots/tg
+
+      - name: Transfer JAR file to server via SCP
+        run: |
+          echo "${{ secrets.DEPLOY_KEY }}" > private_key
+          chmod 600 private_key
+          scp -i private_key -o StrictHostKeyChecking=no \
+            ./telegram-artifacts/TGBOT-0.0.1-SNAPSHOT.jar \
+            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/opt/bots/tg/telegram-simple-bot.jar
+
+      - name: Restart bot service
+        uses: appleboy/ssh-action@v1.2.1
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.DEPLOY_KEY }}
+          port: 22
+          script: |
+            sudo systemctl restart telegram-simple-bot.service
